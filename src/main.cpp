@@ -1,39 +1,45 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <GL/glut.h>
 #include <iostream>
 
-int main(){
+#define WINDOW_WIDTH 540
+#define WINDOW_HEIGHT 960
+
+void drawText(float x, float y, const char* text) {
+    glRasterPos2f(x, y);
+    for (const char* c = text; *c != '\0'; c++) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, *c);
+    }
+}
+
+int main(int argc, char** argv) {
+    // Init GLUT for text rendering
+    glutInit(&argc, argv);
 
     // Initialize GLFW
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return -1;
     }
-    // GL 3.0 + GLSL 130
-    const char *glsl_version = "#version 130";
+
+    const char* glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 
-    GLFWwindow *window = glfwCreateWindow(520, 720, "RPGDemo", NULL, NULL);
-
+    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "RPGDemo", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return -1;
     }
 
-    glfwSetWindowSizeLimits(window, 520, 720, 520, 720);
+    glfwSetWindowSizeLimits(window, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT);
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
 
-
-    // Initialize GLAD
-    
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
-        std::cout << "Failed to initialize GLAD" << "\n";
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cout << "Failed to initialize GLAD\n";
         return -1;
     }
 
@@ -41,27 +47,38 @@ int main(){
     glfwGetFramebufferSize(window, &screen_width, &screen_height);
     glViewport(0, 0, screen_width, screen_height);
 
+    // Set up 2D orthographic projection
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-        glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // Create color triangle
-        glBegin(GL_TRIANGLES);
-        glColor3f(1.0f, 0.0f, 0.0f); // Red
-        glVertex2f(-0.5f, -0.5f); // Bottom left
-        glColor3f(0.0f, 1.0f, 0.0f); // Green
-        glVertex2f(0.5f, -0.5f); // Bottom right
-        glColor3f(0.0f, 0.0f, 1.0f); // Blue
-        glVertex2f(0.0f, 0.5f); // Top
+        // --- TOP HALF: RGB Quad ---
+        glBegin(GL_QUADS);
+        glColor3f(1.0f, 0.0f, 0.0f); glVertex2f(0, 0);
+        glColor3f(0.0f, 1.0f, 0.0f); glVertex2f(WINDOW_WIDTH, 0);
+        glColor3f(0.0f, 0.0f, 1.0f); glVertex2f(WINDOW_WIDTH, WINDOW_HEIGHT / 2);
+        glColor3f(1.0f, 1.0f, 0.0f); glVertex2f(0, WINDOW_HEIGHT / 2);
         glEnd();
+
+        // --- BOTTOM HALF: UI Text ---
+        glColor3f(1.0f, 1.0f, 1.0f); // White text
+        drawText(20, WINDOW_HEIGHT / 2 + 30, "HP: 100   MANA: 50");
+
+        drawText(20, WINDOW_HEIGHT / 2 + 70, "> Attack");
+        drawText(20, WINDOW_HEIGHT / 2 + 100, "  Defend");
+        drawText(20, WINDOW_HEIGHT / 2 + 130, "  Inventory");
 
         glfwSwapBuffers(window);
     }
 
-
-    std::cout << "Hello, World!" << std::endl;
+    glfwTerminate();
     return 0;
 }
