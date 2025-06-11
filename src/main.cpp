@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <GL/glut.h>
 #include <iostream>
+#include "EngineLibrary.h"
 
 #define WINDOW_WIDTH 540
 #define WINDOW_HEIGHT 960
