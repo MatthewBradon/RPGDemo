@@ -1,7 +1,9 @@
 #pragma once
 
 #include <stdio.h>
-
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
 // ######################################################################
 //                              Defines
 // ######################################################################
@@ -84,3 +86,179 @@ void _log(char* prefix, char* msg, TextColor textColor, Args ... args) {
         ENGINE_ERROR("Assertion hit"); \
     } \
 } 
+
+
+// ######################################################################
+//                              Bump Allocator 
+// ######################################################################
+
+struct BumpAllocator
+{
+    size_t size;
+    size_t used;
+    char* memory;
+};
+
+BumpAllocator createBumpAllactor(size_t size){
+    BumpAllocator allocator = {};
+
+    allocator.memory = (char*)malloc(size);
+
+    if (!allocator.memory) {
+        ENGINE_ASSERT(false, "Failed to allocate memory for BumpAllocator");
+    }
+
+    allocator.size = size;
+    memset(allocator.memory, 0, size);
+
+    return allocator;
+}
+
+char* bumpAllocate(BumpAllocator* allocator, size_t size) {
+    char* result = nullptr;
+
+    size_t allignedSize = (size + 7) & ~7;
+    if (allocator->used + allignedSize <= allocator->size) {
+        result = allocator->memory + allocator->used;
+        allocator->used += allignedSize;
+    } else {
+        ENGINE_ASSERT(false, "BumpAllocator out of memory");
+    }
+
+
+    return result;
+}
+
+// ######################################################################
+//                              File I/O 
+// ######################################################################
+long long getTimestamp(char* file){
+    struct stat fileStat = {};
+    stat(file, &fileStat);
+    return fileStat.st_mtime;
+}
+
+bool fileExists(char* filePath) {
+    ENGINE_ASSERT(filePath, "filePath is null");
+
+    auto file = fopen(filePath, "rb");
+
+    if(!file) {
+        return false;
+    }
+
+    fclose(file);
+
+    return true;
+}
+
+
+long getFileSize(char* filePath) {
+    ENGINE_ASSERT(filePath, "filePath is null");
+
+    long fileSize = 0;
+    auto file = fopen(filePath, "rb");
+    if(!file) {
+        ENGINE_ERROR("Failed to open file: %s", filePath);
+        return -1;
+    }
+
+    fseek(file, 0, SEEK_END);
+    fileSize = ftell(file);
+
+    fseek(file, 0, SEEK_SET);
+    fclose(file);
+
+    return fileSize;
+}
+
+/*
+Read File into Buffer
+*/
+char* readFile(char* filePath, int* fileSize, char* buffer){
+    ENGINE_ASSERT(filePath, "filePath is null");
+    ENGINE_ASSERT(fileSize, "fileSize is null");
+    ENGINE_ASSERT(buffer, "buffer is null");
+
+    *fileSize = 0;
+    auto file = fopen(filePath, "rb");
+    if (!file) {
+        ENGINE_ERROR("Failed to open file: %s", filePath);
+        return nullptr;
+    }
+
+    fseek(file, 0, SEEK_END);
+    *fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    memset(buffer, 0, *fileSize + 1); // +1 for null terminator
+    fread(buffer, sizeof(char), *fileSize, file);
+
+    fclose(file);
+
+    return buffer;
+}
+
+
+char* readFile(char* filePath, int* fileSize, BumpAllocator* allocator) {
+    char* file = nullptr;
+    long fileSizeLocal = getFileSize(filePath);
+
+    if(fileSizeLocal) {
+        char* buffer = bumpAllocate(allocator, fileSizeLocal + 1); // +1 for null terminator
+
+        file = readFile(filePath, fileSize, buffer);
+    }
+
+    return file;
+}
+
+void writeFile(char* filePath, char* data, int dataSize) {
+    ENGINE_ASSERT(filePath, "filePath is null");
+    ENGINE_ASSERT(data, "data is null");
+
+    auto file = fopen(filePath, "wb");
+    if (!file) {
+        ENGINE_ERROR("Failed to open file for writing: %s", filePath);
+        return;
+    }
+
+    fwrite(data, sizeof(char), dataSize, file);
+    fclose(file);
+}
+
+
+bool copyFile(char* fileName, char* outputName, char* buffer) {
+    int fileSize = 0;
+    char* data = readFile(fileName, &fileSize, buffer);
+
+    auto outputFile = fopen(outputName, "wb");
+
+    if (!outputFile) {
+        ENGINE_ERROR("Failed to open output file for writing: %s", outputName);
+        return false;
+    }
+
+    int result = fwrite(data, sizeof(char), fileSize, outputFile);
+    fclose(outputFile);
+
+    if (result != fileSize) {
+        ENGINE_ERROR("Failed to write all data to output file: %s", outputName);
+        return false;
+    }
+
+    return true;
+}
+
+bool copyFile(char* fileName, char* outputName, BumpAllocator* allocator) {
+    char* file = 0;
+    long fileSize = getFileSize(fileName);
+
+    if(fileSize){
+        char* buffer = bumpAllocate(allocator, fileSize + 1); // +1 for null terminator
+        
+        return copyFile(fileName, outputName, buffer);
+    }
+
+    return false;
+}
