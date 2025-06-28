@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "input.h"
+
 // ######################################################################
 //                              Defines
 // ######################################################################
@@ -16,6 +18,12 @@
 #ifdef __APPLE__
 #define DEBUG_BREAK() __builtin_trap()
 #endif
+
+
+#define BIT(x) (1 << (x))
+#define KB(x) ((unsigned long long)1024 * x)
+#define MB(x) ((unsigned long long)1024 * KB(x))
+#define GB(x) ((unsigned long long)1024 * MB(x))
 
 // ######################################################################
 //                              Logging 
@@ -175,7 +183,7 @@ long getFileSize(char* filePath) {
 /*
 Read File into Buffer
 */
-char* readFile(char* filePath, int* fileSize, char* buffer){
+char* readFile(const char* filePath, int* fileSize, char* buffer){
     ENGINE_ASSERT(filePath, "filePath is null");
     ENGINE_ASSERT(fileSize, "fileSize is null");
     ENGINE_ASSERT(buffer, "buffer is null");
@@ -261,4 +269,125 @@ bool copyFile(char* fileName, char* outputName, BumpAllocator* allocator) {
     }
 
     return false;
+}
+
+
+// ######################################################################
+//                              OpenGL
+// ######################################################################
+
+GLFWwindow* initializeGLFW(const char* title) {
+    // Initialize GLFW
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialize GLFW" << std::endl;
+        return nullptr;
+    }
+
+    const char* glsl_version = "#version 430";
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+
+    GLFWwindow* window = glfwCreateWindow(input.screenWidth, input.screenHeight, "RPGDemo", NULL, NULL);
+    if (window == NULL) {
+        std::cerr << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return nullptr;
+    }
+
+    glfwSetWindowSizeLimits(window, input.screenWidth, input.screenHeight, input.screenWidth, input.screenHeight);
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1); // Enable vsync
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cout << "Failed to initialize GLAD\n";
+        return nullptr;
+    }
+
+    
+    glViewport(0, 0, input.screenWidth, input.screenHeight);
+
+    return window;
+}
+
+bool initializeOpenGL(BumpAllocator& transientStorage) {
+    
+    GLuint vertShaderID = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fragShaderID = glCreateShader(GL_FRAGMENT_SHADER);
+
+    int fileSize = 0;
+    char* vertShader = readFile("assets/shaders/quad.vert", &fileSize, &transientStorage);
+    char* fragShader = readFile("assets/shaders/quad.frag", &fileSize, &transientStorage);
+
+    if(!vertShader || !fragShader) {
+        ENGINE_ERROR("Failed to read shader files");
+        glfwTerminate();
+        return false;
+    }
+
+    glShaderSource(vertShaderID, 1, &vertShader, 0);
+    glShaderSource(fragShaderID, 1, &fragShader, 0);
+
+    glCompileShader(vertShaderID);
+    glCompileShader(fragShaderID);
+
+
+    {
+        int success;
+        char shaderLog[2048] = {};
+
+        glGetShaderiv(vertShaderID, GL_COMPILE_STATUS, &success);
+
+        if(!success) {
+            glGetShaderInfoLog(vertShaderID, sizeof(shaderLog), 0, shaderLog);
+            ENGINE_ASSERT(false, "Vertex shader compilation failed: %s", shaderLog);
+        }
+    }
+
+    {
+        int success;
+        char shaderLog[2048] = {};
+
+        glGetShaderiv(fragShaderID, GL_COMPILE_STATUS, &success);
+
+        if(!success) {
+            glGetShaderInfoLog(fragShaderID, sizeof(shaderLog), 0, shaderLog);
+            ENGINE_ASSERT(false, "Fragment shader compilation failed: %s", shaderLog);
+        }
+    }
+
+
+    GLuint shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertShaderID);
+    glAttachShader(shaderProgram, fragShaderID);
+    glLinkProgram(shaderProgram);
+
+    glDetachShader(shaderProgram, vertShaderID);
+    glDetachShader(shaderProgram, fragShaderID);
+    glDeleteShader(vertShaderID);
+    glDeleteShader(fragShaderID);
+
+
+    GLuint VAO;
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_GREATER);
+
+    glUseProgram(shaderProgram);
+}
+
+bool render(GLFWwindow* window) {
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepth(0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glViewport(0, 0, input.screenWidth, input.screenHeight);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // Swap buffers
+    glfwSwapBuffers(window);
+
+    return true;
 }
