@@ -4,7 +4,7 @@
 #include <iostream>
 #include "EngineLibrary.h"
 #include "input.h"
-
+#include "game.cpp"
 
 int main(int argc, char** argv) {
 
@@ -21,6 +21,8 @@ int main(int argc, char** argv) {
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
+
+        updateGame();
         render(window);
     }
 

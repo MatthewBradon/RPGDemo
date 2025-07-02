@@ -9,6 +9,8 @@
 #include "input.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#include "renderer_interface.h"
+#include "math.h"
 
 // ######################################################################
 //                              Defines
@@ -35,11 +37,12 @@
 // ######################################################################
 //                              OpenGL Structs
 // ######################################################################
-struct GLContext
-{
+struct GLContext {
     GLuint shaderProgram;
     GLuint VAO;
     GLuint textureID;
+    GLuint transformSBOID;
+    GLuint screenSizeID;
 };
 
 static GLContext glContext;
@@ -48,8 +51,7 @@ static GLContext glContext;
 //                              Logging 
 // ######################################################################
 
-enum TextColor
-{  
+enum TextColor {  
   TEXT_COLOR_BLACK,
   TEXT_COLOR_RED,
   TEXT_COLOR_GREEN,
@@ -159,6 +161,7 @@ char* bumpAllocate(BumpAllocator* allocator, size_t size) {
 // ######################################################################
 //                              File I/O 
 // ######################################################################
+
 long long getTimestamp(char* file){
     struct stat fileStat = {};
     stat(file, &fileStat);
@@ -199,9 +202,6 @@ long getFileSize(char* filePath) {
     return fileSize;
 }
 
-/*
-Read File into Buffer
-*/
 char* readFile(const char* filePath, int* fileSize, char* buffer){
     ENGINE_ASSERT(filePath, "filePath is null");
     ENGINE_ASSERT(fileSize, "fileSize is null");
@@ -359,6 +359,7 @@ bool initializeOpenGL(BumpAllocator& transientStorage) {
         if(!success) {
             glGetShaderInfoLog(vertShaderID, sizeof(shaderLog), 0, shaderLog);
             ENGINE_ASSERT(false, "Vertex shader compilation failed: %s", shaderLog);
+            return false;
         }
     }
 
@@ -371,6 +372,7 @@ bool initializeOpenGL(BumpAllocator& transientStorage) {
         if(!success) {
             glGetShaderInfoLog(fragShaderID, sizeof(shaderLog), 0, shaderLog);
             ENGINE_ASSERT(false, "Fragment shader compilation failed: %s", shaderLog);
+            return false;
         }
     }
 
@@ -419,6 +421,24 @@ bool initializeOpenGL(BumpAllocator& transientStorage) {
         stbi_image_free(data);
     }
 
+    // Create a Vertex Buffer Object (VBO) for the vertex data
+    {
+        glGenBuffers(1, &glContext.transformSBOID);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, glContext.transformSBOID);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Transform) * MAX_TRANSFORMS, renderData.transforms, GL_DYNAMIC_DRAW);
+
+    }
+
+    // Uniforms
+    {
+        glContext.screenSizeID = glGetUniformLocation(glContext.shaderProgram, "screenSize");
+        if (glContext.screenSizeID == -1) {
+            ENGINE_ERROR("Failed to get uniform location for screenSize");
+            return false;
+        }
+        
+    }
+    
     glEnable(GL_FRAMEBUFFER_SRGB);
     glDisable(GL_MULTISAMPLE);
 
@@ -427,7 +447,10 @@ bool initializeOpenGL(BumpAllocator& transientStorage) {
     glDepthFunc(GL_GREATER);
 
     glUseProgram(glContext.shaderProgram);
+
+    return true;
 }
+
 
 bool render(GLFWwindow* window) {
     glfwPollEvents();
@@ -437,7 +460,16 @@ bool render(GLFWwindow* window) {
 
     glViewport(0, 0, input.screenWidth, input.screenHeight);
 
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    Vec2 screenSize = Vec2((float)input.screenWidth, (float)input.screenHeight);
+    glUniform2fv(glContext.screenSizeID, 1, &screenSize.x);
+    {
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(Transform) * renderData.transformCount, renderData.transforms);
+
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, renderData.transformCount);
+
+        renderData.transformCount = 0; // Reset transform count after drawing
+    }
 
     // Swap buffers
     glfwSwapBuffers(window);
