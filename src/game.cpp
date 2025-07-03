@@ -1,9 +1,8 @@
 #pragma once
 
-#include "EngineLibrary.h"
-#include "assets.h"
-#include "renderer_interface.h"
-#include "math.h"
+#include "game.h"
+
+
 
 // #######################################################################################
 //                                      Constants
@@ -24,6 +23,14 @@
 //                                      Functions
 // #######################################################################################
 
-void updateGame() {
+DLL_EXPORT void updateGame(RenderData* renderDataIn, Input* inputIn) {
+    // Update the game state and render data
+
+    if (renderData != renderDataIn) {
+        renderData = renderDataIn;
+        input = inputIn;
+        ENGINE_TRACE("Updated global pointers");
+    }
+
     drawSprite(SPRITE_MIKE, Vec2(0.0f, 0.0f), Vec2(400.0f, 400.0f));
 }
