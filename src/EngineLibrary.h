@@ -11,18 +11,34 @@
 #include <stb_image.h>
 #include "renderer_interface.h"
 #include "math.h"
+#include <iostream>
 
 // ######################################################################
 //                              Defines
 // ######################################################################
 #ifdef _WIN32
 #define DEBUG_BREAK() __debugbreak()
+#define DLL_EXPORT __declspec(dllexport)
 #endif
 #ifdef __linux__
 #define DEBUG_BREAK() __builtin_trap()
+#define DLL_EXPORT __attribute__((visibility("default")))
+
 #endif
 #ifdef __APPLE__
 #define DEBUG_BREAK() __builtin_trap()
+#define DLL_EXPORT __attribute__((visibility("default")))
+
+#endif
+
+
+
+#pragma once
+
+#ifdef _WIN32
+#elif defined(__APPLE__) || defined(__linux__)
+#else
+  #define DLL_EXPORT extern "C"
 #endif
 
 
@@ -162,13 +178,13 @@ char* bumpAllocate(BumpAllocator* allocator, size_t size) {
 //                              File I/O 
 // ######################################################################
 
-long long getTimestamp(char* file){
+long long getTimestamp(const char* file){
     struct stat fileStat = {};
     stat(file, &fileStat);
     return fileStat.st_mtime;
 }
 
-bool fileExists(char* filePath) {
+bool fileExists(const char* filePath) {
     ENGINE_ASSERT(filePath, "filePath is null");
 
     auto file = fopen(filePath, "rb");
@@ -183,7 +199,7 @@ bool fileExists(char* filePath) {
 }
 
 
-long getFileSize(char* filePath) {
+long getFileSize(const char* filePath) {
     ENGINE_ASSERT(filePath, "filePath is null");
 
     long fileSize = 0;
@@ -255,7 +271,7 @@ void writeFile(char* filePath, char* data, int dataSize) {
 }
 
 
-bool copyFile(char* fileName, char* outputName, char* buffer) {
+bool copyFile(const char* fileName, const char* outputName, char* buffer) {
     int fileSize = 0;
     char* data = readFile(fileName, &fileSize, buffer);
 
@@ -277,7 +293,7 @@ bool copyFile(char* fileName, char* outputName, char* buffer) {
     return true;
 }
 
-bool copyFile(char* fileName, char* outputName, BumpAllocator* allocator) {
+bool copyFile(const char* fileName, const char* outputName, BumpAllocator* allocator) {
     char* file = 0;
     long fileSize = getFileSize(fileName);
 
@@ -303,17 +319,17 @@ GLFWwindow* initializeGLFW(const char* title) {
     }
 
     const char* glsl_version = "#version 430";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
-    GLFWwindow* window = glfwCreateWindow(input.screenWidth, input.screenHeight, "RPGDemo", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(input->screenWidth, input->screenHeight, "RPGDemo", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return nullptr;
     }
 
-    glfwSetWindowSizeLimits(window, input.screenWidth, input.screenHeight, input.screenWidth, input.screenHeight);
+    glfwSetWindowSizeLimits(window, input->screenWidth, input->screenHeight, input->screenWidth, input->screenHeight);
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
 
@@ -323,7 +339,7 @@ GLFWwindow* initializeGLFW(const char* title) {
     }
 
     
-    glViewport(0, 0, input.screenWidth, input.screenHeight);
+    glViewport(0, 0, input->screenWidth, input->screenHeight);
 
     return window;
 }
@@ -425,7 +441,7 @@ bool initializeOpenGL(BumpAllocator& transientStorage) {
     {
         glGenBuffers(1, &glContext.transformSBOID);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, glContext.transformSBOID);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Transform) * MAX_TRANSFORMS, renderData.transforms, GL_DYNAMIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Transform) * MAX_TRANSFORMS, renderData->transforms, GL_DYNAMIC_DRAW);
 
     }
 
@@ -458,17 +474,17 @@ bool render(GLFWwindow* window) {
     glClearDepth(0.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glViewport(0, 0, input.screenWidth, input.screenHeight);
+    glViewport(0, 0, input->screenWidth, input->screenHeight);
 
 
-    Vec2 screenSize = Vec2((float)input.screenWidth, (float)input.screenHeight);
+    Vec2 screenSize = Vec2((float)input->screenWidth, (float)input->screenHeight);
     glUniform2fv(glContext.screenSizeID, 1, &screenSize.x);
     {
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(Transform) * renderData.transformCount, renderData.transforms);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(Transform) * renderData->transformCount, renderData->transforms);
 
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, renderData.transformCount);
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, renderData->transformCount);
 
-        renderData.transformCount = 0; // Reset transform count after drawing
+        renderData->transformCount = 0; // Reset transform count after drawing
     }
 
     // Swap buffers

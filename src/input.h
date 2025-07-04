@@ -6,4 +6,4 @@ struct Input
   int screenHeight;
 };
 
-static Input input;
+static Input* input;
