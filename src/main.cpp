@@ -26,14 +26,14 @@ int main(int argc, char** argv) {
     BumpAllocator persistantStorage = createBumpAllactor(MB(50));
 
 
-    input = (Input*)bumpAllocate(&transientStorage, sizeof(Input));
+    input = (Input*)bumpAllocate(&persistantStorage, sizeof(Input));
 
     if (!input) {
         ENGINE_ASSERT(false, "Failed to allocate memory for Input");
         return -1;
     }
 
-    renderData = (RenderData*)bumpAllocate(&transientStorage, sizeof(RenderData));
+    renderData = (RenderData*)bumpAllocate(&persistantStorage, sizeof(RenderData));
 
     if (!renderData) {
         ENGINE_ASSERT(false, "Failed to allocate memory for RenderData");

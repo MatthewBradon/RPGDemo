@@ -32,5 +32,5 @@ DLL_EXPORT void updateGame(RenderData* renderDataIn, Input* inputIn) {
         ENGINE_TRACE("Updated global pointers");
     }
 
-    drawSprite(SPRITE_MIKE, Vec2(0.0f, 0.0f), Vec2(400.0f, 400.0f));
+    drawSprite(SPRITE_SKELETON, Vec2(0.0f, 0.0f), Vec2(400.0f, 400.0f));
 }
